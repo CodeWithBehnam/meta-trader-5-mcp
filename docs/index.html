@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mt5-mcp: connect AI agents to MetaTrader 5 on macOS</title>
+<meta name="description" content="An open-source MCP server that lets Claude and other AI agents read prices, history and positions from MetaTrader 5 on a Mac, and trade only when you switch trading on.">
+<meta property="og:title" content="mt5-mcp">
+<meta property="og:description" content="Connect Claude to MetaTrader 5 on your Mac. Open-source MCP server for the official MT5 macOS app.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://codewithbehnam.github.io/meta-trader-5-mcp/">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%236E1F3A'/%3E%3Cpath d='M9 7v18M16 10v14M23 6v16' stroke='%23F2F4F6' stroke-width='2'/%3E%3Crect x='6.5' y='11' width='5' height='9' fill='%23F2F4F6'/%3E%3Crect x='13.5' y='13' width='5' height='6' fill='%23F2F4F6'/%3E%3Crect x='20.5' y='9' width='5' height='9' fill='%23F2F4F6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F2F4F6;
+  --panel: #FFFFFF;
+  --ink: #1A2433;
+  --muted: #5A6678;
+  --rule: #D6DCE4;
+  --wine: #6E1F3A;
+  --wine-wash: #F3E6EB;
+  --bull: #1E7A66;
+  --bear: #A3324F;
+  --grid: #E7EBF0;
+  --code-bg: #1A2433;
+  --code-ink: #E9EDF3;
+  --sans: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --measure: 64ch;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121924;
+    --panel: #18212E;
+    --ink: #E6EAF0;
+    --muted: #9AA5B5;
+    --rule: #2A3545;
+    --wine: #E08AA6;
+    --wine-wash: #2A1C25;
+    --bull: #4DBA9E;
+    --bear: #E0718D;
+    --grid: #222C3A;
+    --code-bg: #0E141D;
+    --code-ink: #E6EAF0;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+a { color: var(--wine); text-underline-offset: 0.18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--wine); outline-offset: 3px; border-radius: 4px; }
+code, pre, .mono { font-family: var(--mono); font-size: 0.82em; }
+p code, li code, dd code { background: var(--wine-wash); padding: 0.1em 0.35em; border-radius: 4px; }
+
+.wrap { width: min(1160px, 100% - 2.5rem); margin-inline: auto; }
+
+/* Top bar */
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding-block: 1.4rem;
+}
+.brand { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.top nav { display: flex; gap: 1.5rem; font-weight: 500; font-size: 0.95rem; }
+.top nav a { color: var(--ink); text-decoration: none; }
+.top nav a:hover { color: var(--wine); }
+
+/* Hero */
+.hero {
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center; padding-block: clamp(2rem, 6vw, 5rem) clamp(3rem, 7vw, 6rem);
+}
+h1 {
+  font-weight: 800; font-size: clamp(2.6rem, 5.4vw, 4.4rem); line-height: 1.02;
+  letter-spacing: -0.035em; margin: 0 0 1.4rem;
+}
+.lede { font-size: 1.2rem; line-height: 1.55; color: var(--muted); margin: 0 0 2rem; max-width: 34ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; font: 600 1rem var(--sans);
+  padding: 0.8rem 1.25rem; border-radius: 10px; text-decoration: none; cursor: pointer;
+  border: 1.5px solid var(--ink);
+}
+.btn-primary { background: var(--ink); color: var(--paper); }
+.btn-primary:hover { background: var(--wine); border-color: var(--wine); }
+.btn-quiet { background: transparent; color: var(--ink); }
+.btn-quiet:hover { border-color: var(--wine); color: var(--wine); }
+
+/* Chart panel: the one bold element */
+.chart-panel {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 18px;
+  padding: 1.1rem 1.1rem 0.9rem; position: relative;
+}
+.call {
+  font-family: var(--mono); font-size: 0.78rem; color: var(--muted);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4rem 1rem;
+  padding: 0.2rem 0.3rem 0.8rem; border-bottom: 1px solid var(--grid);
+}
+.call b { color: var(--ink); font-weight: 500; }
+.quote { display: flex; gap: 1rem; }
+.quote span { color: var(--ink); }
+#chart { display: block; width: 100%; height: auto; margin-top: 0.6rem; }
+#chart .gridline { stroke: var(--grid); stroke-width: 1; }
+#chart .axis { fill: var(--muted); font: 400 10px var(--mono); }
+#chart .wick { stroke-width: 1.2; }
+#chart .up { fill: var(--bull); stroke: var(--bull); }
+#chart .down { fill: var(--bear); stroke: var(--bear); }
+#chart .gap { stroke: var(--rule); stroke-dasharray: 3 4; }
+#chart .bar { transform-box: fill-box; transform-origin: center; }
+#chart .hit { fill: transparent; cursor: crosshair; }
+#chart .hit:hover + .bar, #chart .bar.active { opacity: 1; }
+.chart-panel figcaption { font-size: 0.85rem; color: var(--muted); padding: 0.6rem 0.3rem 0; line-height: 1.5; }
+.ohlc { font-family: var(--mono); font-size: 0.74rem; color: var(--ink); min-height: 1.4em; padding: 0.35rem 0.3rem 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #chart .bar { animation: rise 520ms cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i) * 22ms + 150ms); }
+  @keyframes rise { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+}
+
+/* Sections */
+section { padding-block: clamp(3rem, 7vw, 5.5rem); border-top: 1px solid var(--rule); }
+h2 { font-weight: 800; font-size: clamp(1.75rem, 3vw, 2.4rem); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 1rem; }
+h3 { font-weight: 600; font-size: 1.15rem; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+.intro { color: var(--muted); max-width: var(--measure); margin: 0 0 2.5rem; font-size: 1.1rem; }
+
+/* Architecture */
+.path {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: relative;
+  margin-top: 1rem;
+}
+.wine-zone {
+  grid-column: 3 / 5; grid-row: 1 / 3; border: 1.5px dashed var(--wine); border-radius: 16px;
+  background: var(--wine-wash); margin: -1rem -0.5rem; position: relative;
+}
+.wine-zone span {
+  position: absolute; top: -0.75rem; left: 1rem; background: var(--paper); padding: 0 0.5rem;
+  color: var(--wine); font-weight: 600; font-size: 0.85rem;
+}
+.hop { grid-row: 1; grid-column: var(--c); padding: 0.4rem 1.25rem 0 0; position: relative; z-index: 1; }
+.hop.in-wine { padding-left: 0.75rem; }
+.hop .where { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.link {
+  grid-row: 2; grid-column: var(--c); position: relative; z-index: 1; padding: 1.4rem 1.25rem 0 0;
+  font-size: 0.85rem; color: var(--muted);
+}
+.link::before {
+  content: ""; display: block; height: 2px; background: var(--ink); margin-bottom: 0.6rem;
+  margin-right: -1.25rem;
+}
+.link code { background: none; padding: 0; color: var(--ink); }
+
+/* Install */
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 2rem; max-width: 860px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0 1rem; }
+.steps li::before {
+  content: counter(step); grid-row: 1 / 3; font-weight: 800; font-size: 1.8rem; line-height: 1;
+  color: var(--wine); padding-top: 0.1rem;
+}
+.steps p { margin: 0 0 0.75rem; color: var(--muted); }
+.cmd {
+  display: flex; align-items: stretch; background: var(--code-bg); color: var(--code-ink);
+  border-radius: 10px; overflow: hidden;
+}
+.cmd code { background: none; padding: 0; border-radius: 0; font-size: inherit; color: inherit; }
+.cmd pre { margin: 0; padding: 0.9rem 1rem; overflow-x: auto; flex: 1; font-size: 0.8rem; line-height: 1.6; }
+.cmd button {
+  flex: none; border: 0; border-left: 1px solid rgba(255,255,255,.12); background: transparent;
+  color: var(--code-ink); font: 500 0.85rem var(--sans); padding: 0 1rem; cursor: pointer; min-width: 5.2rem;
+}
+.cmd button:hover { background: rgba(255,255,255,.08); }
+
+/* Tools */
+.tools { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(2rem, 5vw, 4rem); }
+.tools dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.55rem 1.5rem; }
+.tools dt { font-family: var(--mono); font-size: 0.8rem; padding-top: 0.2rem; }
+.tools dd { margin: 0; color: var(--muted); }
+.trade-col { border-left: 3px solid var(--wine); padding-left: clamp(1rem, 3vw, 2rem); }
+.trade-col .note { color: var(--muted); margin: 0 0 1.2rem; }
+
+/* Order path */
+.order {
+  list-style: none; padding: 0; margin: 0; counter-reset: o;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
+}
+.order li { counter-increment: o; padding: 0 1.25rem 0 0; position: relative; }
+.order li::before {
+  content: counter(o); display: grid; place-items: center; width: 2.2rem; height: 2.2rem;
+  border-radius: 50%; border: 2px solid var(--ink); font-weight: 800; background: var(--paper);
+  position: relative; z-index: 1; margin-bottom: 0.9rem;
+}
+.order li::after {
+  content: ""; position: absolute; top: 1.1rem; left: 2.2rem; right: 0; height: 2px; background: var(--rule);
+}
+.order li:last-child::after { display: none; }
+.order li.stop::before { border-color: var(--wine); color: var(--wine); }
+.order p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.fine { margin-top: 2.5rem; color: var(--muted); max-width: var(--measure); }
+
+/* Requirements */
+.reqs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; }
+.reqs p { margin: 0; color: var(--muted); }
+
+footer { border-top: 1px solid var(--rule); padding-block: 2.5rem 3rem; color: var(--muted); font-size: 0.9rem; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 2rem; }
+footer p { margin: 0; max-width: 60ch; }
+
+@media (max-width: 900px) {
+  .hero, .tools { grid-template-columns: minmax(0, 1fr); }
+  .lede { max-width: none; }
+  .path { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .wine-zone { display: none; }
+  .hop, .link { grid-row: auto; grid-column: auto; padding: 0; }
+  .hop.in-wine {
+    padding: 0.9rem 1rem; background: var(--wine-wash); border-left: 3px solid var(--wine); border-radius: 0 10px 10px 0;
+  }
+  .link { padding: 0.5rem 0 0.5rem 1rem; border-left: 2px solid var(--ink); margin: 0.6rem 0 0.6rem 0.9rem; }
+  .link::before { display: none; }
+  .hop.in-wine h3::after { content: ", inside Wine"; font-weight: 400; color: var(--wine); }
+  .order { grid-template-columns: minmax(0, 1fr); gap: 1.4rem; }
+  .order li { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 0 1rem; padding: 0; }
+  .order li::before { grid-row: 1 / 3; margin: 0; }
+  .order li::after { display: none; }
+  .reqs { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .tools dl { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
+  .tools dd { margin-bottom: 0.7rem; }
+  .top nav a:not(:last-child) { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="wrap top">
+  <a class="brand" href="#">mt5-mcp</a>
+  <nav aria-label="Primary">
+    <a href="#how">How it works</a>
+    <a href="#install">Install</a>
+    <a href="#tools">Tools</a>
+    <a href="https://github.com/CodeWithBehnam/meta-trader-5-mcp">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <h1>Connect Claude to MetaTrader&nbsp;5 on your Mac.</h1>
+      <p class="lede">An open-source MCP server for the official MT5 macOS app. Your agent reads prices, history and positions straight from the terminal you already use. It can only trade if you switch trading on.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#install">Install in three steps</a>
+        <a class="btn btn-quiet" href="https://github.com/CodeWithBehnam/meta-trader-5-mcp">View on GitHub</a>
+      </div>
+    </div>
+
+    <figure class="chart-panel" style="margin:0">
+      <div class="call">
+        <span><b>get_rates</b>(symbol="EURUSD", timeframe="H1", count=48)</span>
+        <span class="quote">bid <span>1.11928</span> ask <span>1.11939</span></span>
+      </div>
+      <svg id="chart" viewBox="0 0 640 300" role="img" aria-labelledby="chart-cap"></svg>
+      <div class="ohlc" id="ohlc" aria-live="polite"></div>
+      <figcaption id="chart-cap">Real EURUSD hourly bars returned by this server from a Pepperstone demo account on 13 October 2026. Times are in UTC; the gap is the weekend.</figcaption>
+    </figure>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it reaches the terminal</h2>
+      <p class="intro">MetaQuotes' Python package only runs on Windows, so the server puts a small bridge inside the Wine environment that the MT5 app ships with. You never start it yourself: the server launches it on the first request.</p>
+      <div class="path">
+        <div class="wine-zone" aria-hidden="true"><span>Inside the MT5 app's Wine</span></div>
+        <div class="hop" style="--c:1"><h3>Your agent</h3><p class="where">Claude Code, Claude Desktop or any MCP client</p></div>
+        <div class="link" style="--c:1">MCP over <code>stdio</code></div>
+        <div class="hop" style="--c:2"><h3>mt5-mcp</h3><p class="where">The MCP server, running natively on macOS</p></div>
+        <div class="link" style="--c:2">JSON over <code>127.0.0.1</code>, with a shared token</div>
+        <div class="hop in-wine" style="--c:3"><h3>mt5-bridge</h3><p class="where">Windows Python with the official MetaTrader5 package</p></div>
+        <div class="link" style="--c:3">MetaTrader5 package, local IPC</div>
+        <div class="hop in-wine" style="--c:4"><h3>MetaTrader 5</h3><p class="where">The terminal you are logged into</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install in three steps</h2>
+      <p class="intro">You need the MetaTrader 5 app from metatrader5.com, open and logged into a broker account, and <a href="https://docs.astral.sh/uv/">uv</a>.</p>
+      <ol class="steps">
+        <li>
+          <h3>Get the code</h3>
+          <div><p>Clone the repository and move into it.</p>
+            <div class="cmd"><pre><code>git clone https://github.com/CodeWithBehnam/meta-trader-5-mcp.git
+cd meta-trader-5-mcp</code></pre><button type="button" data-copy>Copy</button></div></div>
+        </li>
+        <li>
+          <h3>Install the bridge</h3>
+          <div><p>This adds uv, Python 3.12 and the MetaTrader5 package to <code>C:\mt5-bridge</code> inside the MT5 Wine environment. Nothing else in MT5 changes, and it is safe to run again.</p>
+            <div class="cmd"><pre><code>scripts/install-bridge.sh
+uv sync</code></pre><button type="button" data-copy>Copy</button></div></div>
+        </li>
+        <li>
+          <h3>Add it to Claude Code</h3>
+          <div><p>Run this from the repository folder, then start a new Claude Code session and ask for the MT5 terminal status.</p>
+            <div class="cmd"><pre><code>claude mcp add --transport stdio --scope user mt5 -- uv --directory "$PWD" run mt5-mcp</code></pre><button type="button" data-copy>Copy</button></div></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="wrap">
+      <h2>What your agent can do</h2>
+      <p class="intro">Inputs and outputs use UTC. The server works out your broker's clock offset and converts for you.</p>
+      <div class="tools">
+        <div>
+          <h3>Always available, read-only</h3>
+          <dl>
+            <dt>terminal_status</dt><dd>Connection, Algo Trading state and broker clock offset</dd>
+            <dt>get_account_info</dt><dd>Balance, equity, margin and leverage</dd>
+            <dt>list_symbols</dt><dd>Symbols matching a pattern such as <code>*USD*</code></dd>
+            <dt>get_symbol_info</dt><dd>Contract size, digits, spread and trading rules</dd>
+            <dt>get_tick</dt><dd>Latest bid and ask</dd>
+            <dt>get_rates</dt><dd>OHLC bars by count or date range</dd>
+            <dt>get_ticks</dt><dd>Tick history from a start time</dd>
+            <dt>get_positions</dt><dd>Open positions</dd>
+            <dt>get_orders</dt><dd>Pending orders</dd>
+            <dt>get_history_deals</dt><dd>Filled deals, last 7 days by default</dd>
+            <dt>get_history_orders</dt><dd>Past orders</dd>
+            <dt>calc_margin</dt><dd>Margin the broker would require</dd>
+            <dt>calc_profit</dt><dd>Profit between two prices</dd>
+            <dt>check_order</dt><dd>Dry run of an order. Nothing is sent.</dd>
+          </dl>
+        </div>
+        <div class="trade-col">
+          <h3>Trading, off by default</h3>
+          <p class="note">These tools do not exist for the agent until you set <code>MT5_ENABLE_TRADING=1</code>.</p>
+          <dl>
+            <dt>place_order</dt><dd>Market, limit, stop and stop-limit orders</dd>
+            <dt>modify_position_sltp</dt><dd>Change stop loss and take profit</dd>
+            <dt>modify_pending_order</dt><dd>Change price, levels or expiry</dd>
+            <dt>close_position</dt><dd>Close all or part of a position</dd>
+            <dt>cancel_order</dt><dd>Remove a pending order</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="safety">
+    <div class="wrap">
+      <h2>What happens when the agent places an order</h2>
+      <p class="intro">Every order takes the same path. A failure at any step stops it.</p>
+      <ol class="order">
+        <li><h3>Check your limits</h3><p>Symbol allowlist, maximum lots and maximum slippage.</p></li>
+        <li><h3>Ask MT5 first</h3><p><code>order_check</code> must pass before anything is sent.</p></li>
+        <li><h3>Write the intent</h3><p>If the audit log cannot be written, the order is not sent.</p></li>
+        <li class="stop"><h3>Send once</h3><p>Never retried, so a dropped connection cannot double a trade.</p></li>
+        <li><h3>Record the outcome</h3><p>Fills, rejections and unknown outcomes go to the audit log.</p></li>
+      </ol>
+      <p class="fine">MT5's Algo Trading button must also be on for orders to go through. It applies to the whole terminal, including any Expert Advisors on your charts. Start on a demo account.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap reqs">
+      <div><h3>Built for the official app</h3><p>Works with the MetaTrader 5 app from MetaQuotes and the Wine it bundles. No CrossOver, Parallels or Docker.</p></div>
+      <div><h3>Stays on your Mac</h3><p>The bridge only listens on 127.0.0.1 and refuses requests without the token created on first run.</p></div>
+      <div><h3>Open source</h3><p>MIT licensed Python, managed with uv and covered by more than 300 tests. <a href="https://github.com/CodeWithBehnam/meta-trader-5-mcp">Read the code</a>.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Not affiliated with or endorsed by MetaQuotes. MetaTrader is a trademark of MetaQuotes Ltd. Trading carries risk; this software comes with no warranty.</p>
+    <p>MIT licence. <a href="https://github.com/CodeWithBehnam/meta-trader-5-mcp">github.com/CodeWithBehnam/meta-trader-5-mcp</a></p>
+  </div>
+</footer>
+
+<script>
+// Real EURUSD H1 bars [utc epoch, open, high, low, close], fetched with get_rates on 13/10/2026.
+const BARS = [[1791568800,1.1197,1.12044,1.11966,1.12022],[1791572400,1.12021,1.12037,1.1196,1.12002],[1791576000,1.12003,1.12044,1.12,1.12019],[1791752400,1.11842,1.11893,1.11836,1.11872],[1791756000,1.11901,1.12,1.11901,1.11958],[1791759600,1.11959,1.12056,1.11957,1.12043],[1791763200,1.12043,1.12152,1.1204,1.12151],[1791766800,1.1215,1.12172,1.12104,1.12142],[1791770400,1.12143,1.12149,1.1206,1.12069],[1791774000,1.1207,1.12118,1.12062,1.12095],[1791777600,1.12094,1.12115,1.12062,1.12071],[1791781200,1.1207,1.12081,1.11993,1.12024],[1791784800,1.12025,1.12104,1.11978,1.12061],[1791788400,1.12062,1.12082,1.12009,1.1203],[1791792000,1.1203,1.12041,1.11901,1.11931],[1791795600,1.1193,1.11941,1.11809,1.11811],[1791799200,1.1181,1.11852,1.118,1.11803],[1791802800,1.11803,1.11805,1.11728,1.11759],[1791806400,1.11757,1.11837,1.11731,1.11771],[1791810000,1.11771,1.11815,1.11747,1.11769],[1791813600,1.11768,1.11794,1.11698,1.1173],[1791817200,1.1173,1.11761,1.11551,1.11569],[1791820800,1.11569,1.11613,1.11542,1.1159],[1791824400,1.1159,1.1161,1.11574,1.11587],[1791828000,1.11588,1.11614,1.11553,1.11564],[1791831600,1.11564,1.11575,1.11537,1.11538],[1791835200,1.11537,1.11561,1.11525,1.11552],[1791838800,1.11518,1.11577,1.11507,1.11569],[1791842400,1.11579,1.11589,1.1156,1.11561],[1791846000,1.1156,1.11612,1.11557,1.11596],[1791849600,1.11595,1.11606,1.11538,1.11596],[1791853200,1.11595,1.11717,1.11593,1.11711],[1791856800,1.1171,1.11778,1.1168,1.11772],[1791860400,1.11772,1.11773,1.11716,1.11751],[1791864000,1.11752,1.11753,1.11706,1.11715],[1791867600,1.11716,1.11799,1.1171,1.11796],[1791871200,1.11796,1.1183,1.11719,1.11785],[1791874800,1.11783,1.11964,1.11781,1.11883],[1791878400,1.11884,1.11915,1.11804,1.11816],[1791882000,1.11815,1.11851,1.1175,1.11805],[1791885600,1.11804,1.11898,1.118,1.11854],[1791889200,1.11853,1.11937,1.11853,1.11876],[1791892800,1.11871,1.11976,1.11858,1.1196],[1791896400,1.11959,1.12046,1.11864,1.11869],[1791900000,1.11869,1.11972,1.11853,1.11937],[1791903600,1.11938,1.11957,1.11851,1.11956],[1791907200,1.11955,1.1196,1.11887,1.11895],[1791910800,1.11894,1.11944,1.11882,1.11933]];
+
+(function drawChart() {
+  const svg = document.getElementById("chart");
+  const out = document.getElementById("ohlc");
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 640, H = 300, L = 8, R = 58, T = 12, B = 26;
+  const lo = Math.min(...BARS.map(b => b[3])), hi = Math.max(...BARS.map(b => b[2]));
+  const pad = (hi - lo) * 0.08, yMin = lo - pad, yMax = hi + pad;
+  const step = (W - L - R) / BARS.length, body = Math.max(3, step * 0.62);
+  const y = v => T + (yMax - v) / (yMax - yMin) * (H - T - B);
+  const el = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.appendChild(n);
+    return n;
+  };
+  const fmt = v => v.toFixed(5);
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = t => { const d = new Date(t * 1000); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()]; };
+  const time = t => day(t) + " " + new Date(t * 1000).toISOString().slice(11, 16);
+  let lastLabel = -99;
+
+  for (let i = 0; i <= 4; i++) {
+    const v = yMin + (yMax - yMin) * (i / 4);
+    el("line", { class: "gridline", x1: L, x2: W - R + 4, y1: y(v), y2: y(v) });
+    el("text", { class: "axis", x: W - R + 10, y: y(v) + 3.5 }).textContent = v.toFixed(4);
+  }
+
+  BARS.forEach((b, i) => {
+    const [t, o, h, l, c] = b;
+    const cx = L + step * i + step / 2;
+    if (i > 0 && t - BARS[i - 1][0] > 3600 * 6) {
+      el("line", { class: "gap", x1: cx - step / 2, x2: cx - step / 2, y1: T, y2: H - B });
+    }
+    // One label per UTC day, skipped when it would crowd the previous one.
+    const newDay = i === 0 || day(t) !== day(BARS[i - 1][0]);
+    if (newDay && i - lastLabel >= 6) {
+      el("text", { class: "axis", x: cx, y: H - 8, "text-anchor": "start" }).textContent = day(t);
+      lastLabel = i;
+    }
+    const hit = el("rect", { class: "hit", x: cx - step / 2, y: T, width: step, height: H - T - B });
+    const g = el("g", { class: "bar " + (c >= o ? "up" : "down"), style: "--i:" + i });
+    el("line", { class: "wick", x1: cx, x2: cx, y1: y(h), y2: y(l) }, g);
+    const top = y(Math.max(o, c)), bot = y(Math.min(o, c));
+    el("rect", { x: cx - body / 2, y: top, width: body, height: Math.max(1, bot - top), rx: 1 }, g);
+    const show = () => { out.textContent = time(t) + " UTC   O " + fmt(o) + "  H " + fmt(h) + "  L " + fmt(l) + "  C " + fmt(c); };
+    hit.addEventListener("mouseenter", show);
+    hit.addEventListener("click", show);
+  });
+  const last = BARS[BARS.length - 1];
+  out.textContent = "Last bar " + time(last[0]) + " UTC   close " + fmt(last[4]);
+})();
+
+document.querySelectorAll("[data-copy]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const text = btn.parentElement.querySelector("code").textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = "Copied";
+    } catch (err) {
+      btn.textContent = "Select and copy";
+      console.warn("Clipboard unavailable", err);
+    }
+    setTimeout(() => { btn.textContent = "Copy"; }, 1800);
+  });
+});
+</script>
+</body>
+</html>

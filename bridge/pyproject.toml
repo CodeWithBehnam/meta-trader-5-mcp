@@ -1,0 +1,45 @@
+[project]
+name = "mt5-bridge"
+version = "0.1.0"
+description = "Wine-side TCP bridge exposing the MetaTrader5 Python package as newline-delimited JSON."
+requires-python = "==3.12.*"
+dependencies = [
+    "MetaTrader5>=5.0.6231; sys_platform == 'win32'",
+    # numpy 2.x crashes under Wine 10 (ucrtbase.crealf is unimplemented).
+    "numpy<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.8",
+    "ty>=0.0.1a1",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "PT", "RUF", "S", "T20", "A", "BLE"]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts and fixed test tokens are normal in tests.
+"tests/**" = ["S101", "S105", "S106", "PT018"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.rules]
+# MetaTrader5 only has Windows wheels and is imported dynamically; keep this
+# the only relaxed rule so everything else stays strict.
+unresolved-import = "ignore"
