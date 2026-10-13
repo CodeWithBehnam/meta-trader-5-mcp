@@ -85,6 +85,11 @@ Desktop does not inherit your shell `PATH`, so give the full path to `uv` (`whic
 }
 ```
 
+## Remote agents
+
+To let a cloud agent (Grok or any client with remote MCP support) use it over HTTPS, with a key,
+price tools only and trading forced off, follow [docs/remote-access.md](docs/remote-access.md).
+
 ## Tools
 
 Always available (read-only):
