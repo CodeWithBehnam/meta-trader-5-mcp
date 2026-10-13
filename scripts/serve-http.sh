@@ -30,6 +30,10 @@ SUPERGATEWAY="${MT5_SUPERGATEWAY:-supergateway@4.1.0}"
 log() { printf '%s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }
 
+# The published supergateway 4.1.0 silently ignores --host, --apiKeyFile and --tools, so this
+# script would serve an unauthenticated endpoint on every interface. Disabled until replaced.
+die "disabled: supergateway 4.1.0 ignores the security flags this script relies on (see docs/remote-access.md)"
+
 if [ "${MT5_ENABLE_TRADING:-0}" != "0" ]; then
   die "MT5_ENABLE_TRADING must be 0 when serving over HTTP; trading tools are never exposed remotely"
 fi

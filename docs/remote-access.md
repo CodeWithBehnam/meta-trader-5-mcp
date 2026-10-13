@@ -1,5 +1,9 @@
 # Remote access: connect a cloud agent to mt5-mcp
 
+> **Do not use this guide yet.** The published supergateway 4.1.0 silently ignores the
+> `--host`, `--apiKeyFile` and `--tools` flags below, so the endpoint it creates has no key check
+> and listens on every network interface. `scripts/serve-http.sh` is disabled until a fix lands.
+
 `mt5-mcp` speaks MCP over stdio, so only programs on your Mac can use it directly. A cloud-hosted
 agent (Grok, a hosted Claude agent, or any client that supports remote MCP servers over Streamable
 HTTP) needs two extra pieces:
